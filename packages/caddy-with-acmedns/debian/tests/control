@@ -1,0 +1,7 @@
+Test-Command: runuser -u caddy -- env -u AUTOPKGTEST_TMP nu --no-config-file debian/tests/http.nu
+Depends: @, nushell, curl
+Restrictions: needs-root, isolation-container
+
+Tests: stock-replacement.nu
+Depends: @, nushell
+Restrictions: needs-root, isolation-container, breaks-testbed, needs-internet, allow-stderr

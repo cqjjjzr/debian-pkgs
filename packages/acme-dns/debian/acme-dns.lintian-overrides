@@ -1,0 +1,2 @@
+# The service is deliberately built as a static Go binary with CGO_ENABLED=0.
+acme-dns: statically-linked-binary [usr/bin/acme-dns]

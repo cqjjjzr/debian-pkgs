@@ -1,0 +1,2 @@
+# CoreDNS follows upstream's CGO_ENABLED=0 build: a deliberately static Go binary.
+coredns: statically-linked-binary [usr/bin/coredns]

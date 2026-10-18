@@ -1,0 +1,53 @@
+= acme-dns Debian package
+
+This directory packages https://github.com/acme-dns/acme-dns[acme-dns] for Debian amd64 with systemd integration. acme-dns provides a dedicated authoritative DNS server and authenticated HTTP API for ACME DNS-01 challenges, isolating challenge TXT record updates from primary DNS zones. Release and toolchain pins live in link:versions.env[`versions.env`].
+
+See link:../../README.adoc[the repository README] for repository-wide build instructions.
+
+== Build
+
+Install Nushell and either Podman or Docker on the build host. Run from this directory:
+
+[source,sh]
+----
+nu ../../scripts/build.nu acme-dns
+----
+
+Set `CONTAINER_RUNTIME=docker` to use Docker instead of Podman.
+
+`../../scripts/build.nu` builds and tests the package in a disposable container, caching Go modules and writing `.deb`, `.buildinfo`, and `.changes` to `build/`.
+
+To update versions, edit `versions.env`:
+
+* `UPSTREAM_VERSION`: acme-dns release tag without `v`
+* `SOURCE_REVISION`: Git commit hash of the release tag
+* `GO_VERSION`: Go toolchain version
+* `DEBIAN_REVISION`: Package revision number (increment for packaging-only changes)
+
+== Package details
+
+The package installs:
+
+* `/usr/bin/acme-dns`
+* `/etc/acme-dns/config.cfg` (conffile)
+* `/usr/lib/systemd/system/acme-dns.service`
+
+The default configuration binds DNS to `127.0.0.1:5354`, the HTTP API to `127.0.0.1:8080`, sets the domain to `acme.invalid`, and disables registration.
+
+The systemd service unit runs as the unprivileged user `acme-dns` with working directory and SQLite database in `/var/lib/acme-dns` (`StateDirectory=acme-dns`, mode 0750).
+
+The package installs the service unit disabled and stopped (`dh_installsystemd --no-start --no-enable`). After editing `/etc/acme-dns/config.cfg`:
+
+[source,sh]
+----
+sudo systemctl enable --now acme-dns
+----
+
+Dpkg preserves administrator edits to `/etc/acme-dns/config.cfg`. Package removal preserves the SQLite database in `/var/lib/acme-dns` and the `acme-dns` service user.
+
+== Verification
+
+`../../scripts/build.nu` runs upstream Go tests, lintian, piuparts and autopkgtest.
+The autopkgtest (`debian/tests/api-dns.nu`) checks registration, authentication, UDP/TCP answers and persistence across restarts.
+It also checks that edited configuration and the real database survive reinstallation and removal.
+Piuparts handles generic installation, removal and purge checks.

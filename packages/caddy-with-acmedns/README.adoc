@@ -1,0 +1,81 @@
+= Caddy with acmedns
+
+This directory packages Caddy bundled with the `dns.providers.acmedns` plugin (https://github.com/caddy-dns/acmedns) for Debian amd64.
+
+The package drops in place of stock `caddy`:
+
+* Declares `Provides: caddy (= ${binary:Version}), httpd`, `Conflicts: caddy`, and `Replaces: caddy`
+* Uses standard Caddy file paths: `/usr/bin/caddy`, `/etc/caddy/Caddyfile`, `caddy.service`, and `caddy-api.service`
+
+Release and toolchain pins live in link:versions.env[`versions.env`].
+
+See link:../../README.adoc[the repository README] for repository-wide build instructions.
+
+== Build
+
+Install Nushell and either Podman or Docker on the build host. Run from this directory:
+
+[source,sh]
+----
+nu ../../scripts/build.nu caddy-with-acmedns
+----
+
+Set `CONTAINER_RUNTIME=docker` to use Docker instead of Podman.
+
+`../../scripts/build.nu` compiles Caddy via `xcaddy`, runs lintian, piuparts and autopkgtest, then writes `.deb`, `.buildinfo` and `.changes` to `build/`.
+
+For a native build with local Debian packaging tools (`build-essential`, `debhelper`, `fakeroot`, `curl`, `ca-certificates`, `lintian`):
+
+[source,sh]
+----
+nu ../../scripts/build-source.nu caddy-with-acmedns --native
+----
+
+To compile only the binary without building a Debian package:
+
+[source,sh]
+----
+nu ../../scripts/build-caddy.nu .
+----
+
+To update versions, edit `versions.env`:
+
+* `CADDY_VERSION`: Caddy release tag
+* `XCADDY_VERSION`: xcaddy release tag
+* `ACMEDNS_REVISION`: Git commit hash of `github.com/caddy-dns/acmedns`
+* `GO_VERSION`: Go toolchain version
+* `GO_SHA256`: Checksum for the Go compiler archive
+* `DIST_REVISION`: Git commit hash of `caddyserver/dist` (provides systemd units and default Caddyfile)
+* `DEBIAN_REVISION`: Package revision number (increment for packaging-only changes)
+
+== Package details
+
+The package installs:
+
+* `/usr/bin/caddy`
+* `/etc/caddy/Caddyfile` (conffile with upstream default configuration)
+* `/usr/share/caddy/index.html` (default welcome page)
+* `/usr/lib/systemd/system/caddy.service` and `/usr/lib/systemd/system/caddy-api.service`
+* `/usr/share/man/man8/` manual pages
+
+The package creates the `caddy` system user and group with home `/var/lib/caddy`. The service units default to disabled and stopped (`dh_installsystemd --no-start --no-enable`).
+
+To install or replace stock Caddy:
+
+[source,sh]
+----
+sudo systemctl stop caddy caddy-api
+sudo apt install ./build/caddy-with-acmedns_<version>-<revision>_amd64.deb
+sudo systemctl enable --now caddy
+----
+
+APT replaces stock `caddy` without deleting existing configuration or TLS certificate data in `/var/lib/caddy`. Rebuild this package for updates; do not use `caddy upgrade`, which bypasses dpkg.
+
+Package removal preserves `/etc/caddy/Caddyfile` and `/var/lib/caddy`. Package purging removes `/etc/caddy/Caddyfile` while retaining certificate data.
+
+== Verification
+
+The HTTP autopkgtest (`debian/tests/http.nu`) runs as `caddy` and checks the acmedns module and HTTP responses.
+`debian/tests/stock-replacement.nu` uses Debian's real `caddy` package to check replacement in both directions.
+It checks that edited configuration and state survive replacement and removal.
+Piuparts handles generic installation, removal, reinstallation and purge checks.

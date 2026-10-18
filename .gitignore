@@ -1,0 +1,4 @@
+/packages/*/build/
+/packages/*/.cache/
+/packages/*/caddy-build/
+__pycache__/

@@ -1,0 +1,7 @@
+# Safe local demonstration. Replace with your production configuration.
+.:53 {
+    bind 127.0.0.1
+    whoami
+    errors
+    reload
+}

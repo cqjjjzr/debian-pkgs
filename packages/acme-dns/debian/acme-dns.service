@@ -1,0 +1,25 @@
+[Unit]
+Description=ACME DNS challenge service
+Documentation=https://github.com/acme-dns/acme-dns
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=acme-dns
+Group=acme-dns
+StateDirectory=acme-dns
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/acme-dns
+ExecStart=/usr/bin/acme-dns -c /etc/acme-dns/config.cfg
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

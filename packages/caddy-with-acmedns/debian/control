@@ -1,0 +1,18 @@
+Source: caddy-with-acmedns
+Section: httpd
+Priority: optional
+Maintainer: chariri <w@chariri.moe>
+Build-Depends: debhelper-compat (= 13), curl, ca-certificates
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://caddyserver.com
+
+Package: caddy-with-acmedns
+Architecture: amd64
+Depends: ${misc:Depends}, ca-certificates, passwd
+Provides: caddy (= ${binary:Version}), httpd
+Conflicts: caddy
+Replaces: caddy
+Description: Caddy web server with the acmedns DNS provider
+ Builds Caddy with dns.providers.acmedns for DNS-01 certificate validation.
+ Uses the standard Caddy executable path, configuration and service names.

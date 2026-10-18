@@ -1,0 +1,15 @@
+Source: acme-dns
+Section: net
+Priority: optional
+Maintainer: chariri <w@chariri.moe>
+Build-Depends: debhelper-compat (= 13), golang-any, ca-certificates
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/acme-dns/acme-dns
+
+Package: acme-dns
+Architecture: amd64
+Depends: ${misc:Depends}, adduser, ca-certificates
+Description: Simplified DNS server, serving your ACME DNS challenges (TXT)
+ Limited DNS server with RESTful HTTP API to handle ACME DNS challenges
+ easily and securely.

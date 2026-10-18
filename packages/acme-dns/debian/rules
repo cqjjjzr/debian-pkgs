@@ -1,0 +1,33 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/architecture.mk
+export CGO_ENABLED = 0
+export GOTOOLCHAIN = local
+
+%:
+	dh $@ --buildsystem=makefile
+
+override_dh_auto_configure:
+	test "$(DEB_BUILD_ARCH)" = "$(DEB_HOST_ARCH)"
+	go mod download
+	go mod verify
+
+override_dh_auto_build:
+	go build -mod=readonly -trimpath -buildvcs=false -ldflags='-s -w' -o acme-dns .
+
+override_dh_auto_test:
+	go test -mod=readonly ./...
+
+override_dh_auto_install:
+	install -D -m0755 acme-dns debian/acme-dns/usr/bin/acme-dns
+	install -D -m0644 debian/config.cfg debian/acme-dns/etc/acme-dns/config.cfg
+
+override_dh_auto_clean:
+	rm -f acme-dns
+
+override_dh_installsystemd:
+	dh_installsystemd --no-start --no-enable
+
+# The Go linker already strips this static binary.
+override_dh_dwz:
+override_dh_strip:

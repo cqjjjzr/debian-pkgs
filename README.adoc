@@ -1,0 +1,74 @@
+= Debian packages
+
+This repository maintains Debian amd64 packaging recipes for three packages:
+
+* link:packages/coredns/README.adoc[CoreDNS]: DNS server with systemd integration and unprivileged execution.
+* link:packages/acme-dns/README.adoc[acme-dns]: Dedicated DNS server for ACME DNS-01 challenge validation.
+* link:packages/caddy-with-acmedns/README.adoc[Caddy with acmedns]: Caddy web server built with the `dns.providers.acmedns` plugin via xcaddy, replacing stock `caddy`.
+
+Each package pins upstream source tags, commit hashes, Go compiler versions, and package revisions in its own `versions.env`. Increment `DEBIAN_REVISION` for packaging changes.
+
+== Build
+
+Container builds require Nushell (`nu`) and either Podman or Docker. Run from the repository root:
+
+[source,sh]
+----
+# Build all packages
+nu scripts/build.nu
+
+# Or select specific packages
+nu scripts/build.nu coredns acme-dns
+----
+
+Builds write `.deb`, `.buildinfo`, and `.changes` artifacts to `packages/<name>/build/`.
+
+Container builds compile in disposable Debian environments with isolated compiler and module caches. Caddy also supports a native host build:
+
+[source,sh]
+----
+nu scripts/build-source.nu caddy-with-acmedns --native
+----
+
+== Tests
+
+Each selected package runs these checks:
+
+1. Upstream unit tests where provided, followed by lintian.
+2. Piuparts for installation, removal, reinstallation and purge in a clean Debian chroot. It also tests upgrades when an archive version is available.
+3. Autopkgtest for the installed service and package-specific behavior declared in `packages/<name>/debian/tests/control`.
+
+Acme-dns checks database and configuration retention across reinstallation and removal.
+Caddy checks replacement of Debian's stock package and preservation of configuration and state.
+CoreDNS checks authoritative DNS over UDP and TCP.
+
+The build container uses the runtime's default permissions.
+The separate test container uses `--privileged` so piuparts can mount its chroot filesystems.
+It receives only staged artifacts and read-only scripts; compiler caches stay outside it.
+The build directory receives artifacts only after all checks pass.
+
+The test image installs Nushell from its signed upstream APT repository, matching the host Nu release.
+Autopkgtest runs with the `null` backend inside this disposable container.
+The runner overrides `isolation-container` and `breaks-testbed` because the outer container supplies isolation and is discarded afterward.
+Native Caddy builds run lintian but skip installed-package tests.
+
+Run tests by building the package:
+
+[source,sh]
+----
+nu scripts/build.nu <package>
+----
+
+Do not run `scripts/test-package.nu` directly on a workstation or server.
+It runs destructive package tests and belongs inside the disposable test container.
+
+== Releases
+
+Releases use `<package>/v<Debian-version>` git tags pointing to the packaging commit. Each release attaches that package's `.deb`, `.buildinfo`, and `.changes` files. The release body contains SHA256 checksums of the build artifacts and the upstream release notes.
+
+To publish a release with the GitHub CLI:
+
+[source,sh]
+----
+GH_REPO=owner/repo GITHUB_SHA=$(git rev-parse HEAD) nu scripts/release.nu <package> packages/<package>/build
+----

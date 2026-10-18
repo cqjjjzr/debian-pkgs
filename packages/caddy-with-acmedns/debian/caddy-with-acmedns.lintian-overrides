@@ -1,0 +1,1 @@
+caddy-with-acmedns: statically-linked-binary [usr/bin/caddy]

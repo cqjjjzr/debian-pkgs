@@ -1,0 +1,86 @@
+name: Debian packages
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      coredns:
+        description: Build CoreDNS
+        type: boolean
+        default: true
+      acme-dns:
+        description: Build acme-dns
+        type: boolean
+        default: true
+      caddy-with-acmedns:
+        description: Build Caddy with acmedns
+        type: boolean
+        default: true
+      release:
+        description: Publish a GitHub release for each selected package
+        type: boolean
+        default: false
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: nu --no-config-file {0}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      packages: ${{ steps.build.outputs.packages }}
+    env:
+      CONTAINER_RUNTIME: docker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-nu@v3
+        with:
+          version: '0.115.1'
+      - uses: actions/cache@v4
+        with:
+          path: packages/*/.cache
+          key: ${{ runner.os }}-go-${{ hashFiles('packages/*/versions.env', 'containers/**') }}
+          restore-keys: ${{ runner.os }}-go-
+      - name: Build and test selected packages
+        id: build
+        env:
+          SELECTED_INPUTS: ${{ toJSON(inputs) }}
+        run: nu --no-config-file scripts/build.nu
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch' && inputs.release
+        with:
+          name: packages
+          path: |
+            packages/*/build/*.deb
+            packages/*/build/*.buildinfo
+            packages/*/build/*.changes
+          if-no-files-found: error
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.release
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.build.outputs.packages) }}
+    concurrency:
+      group: release-${{ matrix.package }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hustcer/setup-nu@v3
+        with:
+          version: '0.115.1'
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: artifacts
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PACKAGE: ${{ matrix.package }}
+        run: nu --no-config-file scripts/release.nu $env.PACKAGE $"artifacts/($env.PACKAGE)/build"

@@ -1,0 +1,26 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    # Add user and group
+    if ! getent group caddy >/dev/null; then
+        groupadd --system caddy
+    fi
+    if ! getent passwd caddy >/dev/null; then
+        useradd --system \
+            --gid caddy \
+            --no-create-home \
+            --home-dir /var/lib/caddy \
+            --shell /usr/sbin/nologin \
+            --comment "Caddy web server" \
+            caddy
+    fi
+    if getent group www-data >/dev/null; then
+        usermod -aG www-data caddy
+    fi
+
+    # These directories are installed and tracked by dpkg.
+    chown caddy:caddy /var/lib/caddy /var/log/caddy
+fi
+
+#DEBHELPER#

@@ -1,0 +1,15 @@
+Source: coredns
+Section: net
+Priority: optional
+Maintainer: chariri <w@chariri.moe>
+Build-Depends: debhelper-compat (= 13), golang-any, ca-certificates
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://coredns.io
+
+Package: coredns
+Architecture: amd64
+Depends: ${misc:Depends}, adduser
+Description: DNS server that chains plugins
+ CoreDNS is a flexible DNS server with plugins for authoritative zones,
+ caching, forwarding, service discovery, and other DNS functions.

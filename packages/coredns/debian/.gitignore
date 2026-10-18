@@ -1,0 +1,6 @@
+/.debhelper/
+/coredns/
+/files
+/*.debhelper
+/*.substvars
+/debhelper-build-stamp

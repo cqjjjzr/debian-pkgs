@@ -1,0 +1,63 @@
+= CoreDNS Debian package
+
+This directory packages upstream CoreDNS for Debian amd64 with systemd integration and unprivileged execution. Release and toolchain pins live in link:versions.env[`versions.env`].
+
+See link:../../README.adoc[the repository README] for repository-wide build instructions.
+
+== Build
+
+Install Nushell and either Podman or Docker on the build host. Run from this directory:
+
+[source,sh]
+----
+nu ../../scripts/build.nu coredns
+----
+
+Set `CONTAINER_RUNTIME=docker` to use Docker instead of Podman.
+
+`../../scripts/build.nu` compiles and tests the package in a disposable container, caching Go modules and writing `.deb`, `.buildinfo`, and `.changes` to `build/`.
+
+To update versions, edit `versions.env`:
+
+* `UPSTREAM_VERSION`: CoreDNS release tag without `v`
+* `SOURCE_REVISION`: Git commit hash of the release tag
+* `GO_VERSION`: Go toolchain version
+* `DEBIAN_REVISION`: Package revision number (increment for packaging-only changes)
+
+== Package details
+
+The package installs:
+
+* `/usr/bin/coredns`
+* `/etc/coredns/Corefile` (conffile)
+* `/usr/share/man/man1/coredns.1.gz` and plugin man pages
+* `/usr/lib/systemd/system/coredns.service`
+
+The default Corefile answers on loopback:
+
+[source,text]
+----
+.:53 {
+    bind 127.0.0.1
+    whoami
+    errors
+    reload
+}
+----
+
+The systemd service unit runs as the unprivileged user `coredns` in `/etc/coredns`, using `AmbientCapabilities=CAP_NET_BIND_SERVICE` to bind port 53. Persistent state belongs in `/var/lib/coredns` (`StateDirectory=coredns`).
+
+The package enables `coredns.service` on installation but leaves it stopped (`dh_installsystemd --no-start`). After configuring `/etc/coredns/Corefile`:
+
+[source,sh]
+----
+sudo systemctl start coredns
+----
+
+Dpkg preserves administrator edits to `/etc/coredns/Corefile`. Stop the service before removing the package. Package removal preserves `/etc/coredns/Corefile`, `/var/lib/coredns`, and the `coredns` service user.
+
+== Verification
+
+`../../scripts/build.nu` runs upstream unit tests (core, file, forward, reload, acl and view), lintian, piuparts and autopkgtest.
+The autopkgtest (`debian/tests/authoritative-dns.nu`) runs as `coredns` and checks UDP/TCP answers, authority flags and NXDOMAIN.
+Piuparts handles generic installation, removal, reinstallation and purge checks.
