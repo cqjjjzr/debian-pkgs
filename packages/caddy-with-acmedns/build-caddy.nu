@@ -1,26 +1,8 @@
 #!/usr/bin/env -S nu --no-config-file
-# Build Caddy with acmedns using the checksum-verified Go compiler and pinned modules.
+# Build Caddy with acmedns using the pinned Go toolchain and modules.
 
 use std/assert
 use versions.nu read-versions
-
-# Verify or download the pinned Go toolchain archive.
-def ensure-toolchain [pins: record, work: path, toolchain: path] {
-    let installed = ^test -x ($toolchain | path join bin go) | complete
-    if $installed.exit_code != 0 {
-        let download = ^mktemp -d ($work | path join tools download.XXXXXX) | str trim
-        try {
-            let archive = $download | path join go.tar.gz
-            (^curl --fail --location --retry 3
-                $"https://go.dev/dl/go($pins.GO_VERSION).linux-amd64.tar.gz" -o $archive)
-            $"($pins.GO_SHA256)  ($archive)\n" | ^sha256sum -c -
-            ^tar -xzf $archive -C $download
-            mv ($download | path join go) $toolchain
-        } finally {
-            rm --recursive --force $download
-        }
-    }
-}
 
 # Compile Caddy using xcaddy with the pinned acmedns plugin.
 def compile-caddy [pins: record, work: path] {
@@ -45,21 +27,16 @@ def verify-build [pins: record, work: path] {
 }
 
 def main [root: path = '.'] {
-    assert equal (^uname -s | str trim) 'Linux' 'The bootstrap compiler requires Linux amd64'
-    assert equal (^uname -m | str trim) 'x86_64' 'The bootstrap compiler requires Linux amd64'
     let root = $root | path expand
     let pins = read-versions ($root | path join versions.env)
     let work = $root | path join caddy-build
-    let toolchain = $work | path join tools $"go($pins.GO_VERSION)"
-
-    # Keep downloaded toolchains, caches, and temporary build files private.
+    # Keep caches and temporary build files private.
     umask rwx------ | ignore
-    mkdir ($work | path join tools) ($work | path join bin) ($work | path join out) ($work | path join tmp)
-    ensure-toolchain $pins $work $toolchain
+    mkdir ($work | path join bin) ($work | path join out) ($work | path join tmp)
 
     load-env {
-        PATH: ($env.PATH | prepend [($toolchain | path join bin) ($work | path join bin)])
-        GOTOOLCHAIN: local, CGO_ENABLED: '0', GOOS: linux, GOARCH: amd64
+        PATH: ($env.PATH | prepend ($work | path join bin))
+        GOTOOLCHAIN: $"go($pins.GO_VERSION)", CGO_ENABLED: '0', GOOS: linux
         GOMAXPROCS: '2', GOFLAGS: '-p=2'
         # Proxy-only downloads avoid requiring git on the build host.
         GOPROXY: 'https://proxy.golang.org', GOSUMDB: sum.golang.org
@@ -69,6 +46,7 @@ def main [root: path = '.'] {
         TMPDIR: ($work | path join tmp)
     }
 
+    $env.GOARCH = ^go env GOHOSTARCH | str trim
     compile-caddy $pins $work
     verify-build $pins $work
 }

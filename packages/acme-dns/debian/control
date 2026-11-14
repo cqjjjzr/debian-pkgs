@@ -8,7 +8,7 @@ Rules-Requires-Root: no
 Homepage: https://github.com/acme-dns/acme-dns
 
 Package: acme-dns
-Architecture: amd64
+Architecture: linux-any
 Depends: ${misc:Depends}, adduser, ca-certificates
 Description: Simplified DNS server, serving your ACME DNS challenges (TXT)
  Limited DNS server with RESTful HTTP API to handle ACME DNS challenges

@@ -3,11 +3,12 @@
 
 use std/assert
 
-def main [artifacts: path] {
+def main [artifacts: path, ...ignore_paths: string] {
     let debs = glob ($artifacts | path join '*.deb')
     assert (not ($debs | is-empty)) 'No packages to test'
 
-    ^piuparts --distribution trixie --install-remove-install ...$debs
+    let ignores = $ignore_paths | each {|path| $"--ignore=($path)" }
+    ^piuparts --distribution trixie --install-remove-install ...$ignores ...$debs
 
     # The outer container supplies isolation and is discarded after these tests.
     (

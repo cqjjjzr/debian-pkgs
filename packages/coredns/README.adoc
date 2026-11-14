@@ -1,28 +1,8 @@
 = CoreDNS Debian package
 
-This directory packages upstream CoreDNS for Debian amd64 with systemd integration and unprivileged execution. Release and toolchain pins live in link:versions.env[`versions.env`].
+This directory packages upstream CoreDNS for Debian Linux with systemd integration and unprivileged execution. Release and toolchain pins live in link:versions.env[`versions.env`].
 
 See link:../../README.adoc[the repository README] for repository-wide build instructions.
-
-== Build
-
-Install Nushell and either Podman or Docker on the build host. Run from this directory:
-
-[source,sh]
-----
-nu ../../scripts/build.nu coredns
-----
-
-Set `CONTAINER_RUNTIME=docker` to use Docker instead of Podman.
-
-`../../scripts/build.nu` compiles and tests the package in a disposable container, caching Go modules and writing `.deb`, `.buildinfo`, and `.changes` to `build/`.
-
-To update versions, edit `versions.env`:
-
-* `UPSTREAM_VERSION`: CoreDNS release tag without `v`
-* `SOURCE_REVISION`: Git commit hash of the release tag
-* `GO_VERSION`: Go toolchain version
-* `DEBIAN_REVISION`: Package revision number (increment for packaging-only changes)
 
 == Package details
 
@@ -58,6 +38,5 @@ Dpkg preserves administrator edits to `/etc/coredns/Corefile`. Stop the service 
 
 == Verification
 
-`../../scripts/build.nu` runs upstream unit tests (core, file, forward, reload, acl and view), lintian, piuparts and autopkgtest.
+The build runs upstream tests for core and the file, forward, reload, acl and view plugins.
 The autopkgtest (`debian/tests/authoritative-dns.nu`) runs as `coredns` and checks UDP/TCP answers, authority flags and NXDOMAIN.
-Piuparts handles generic installation, removal, reinstallation and purge checks.

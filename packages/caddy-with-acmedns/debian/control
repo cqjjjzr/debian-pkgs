@@ -2,13 +2,13 @@ Source: caddy-with-acmedns
 Section: httpd
 Priority: optional
 Maintainer: chariri <w@chariri.moe>
-Build-Depends: debhelper-compat (= 13), curl, ca-certificates
+Build-Depends: debhelper-compat (= 13), golang-any, ca-certificates
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
 Homepage: https://caddyserver.com
 
 Package: caddy-with-acmedns
-Architecture: amd64
+Architecture: linux-any
 Depends: ${misc:Depends}, ca-certificates, passwd
 Provides: caddy (= ${binary:Version}), httpd
 Conflicts: caddy

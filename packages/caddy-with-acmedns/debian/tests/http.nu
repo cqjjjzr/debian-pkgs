@@ -29,7 +29,7 @@ def start-daemon [work: path, pidfile: path, log: path] {
 def wait-ready [pidfile: path] {
     for attempt in 1..10 {
         if ($pidfile | path exists) {
-            ^start-stop-daemon --status --pidfile $pidfile --exec /usr/bin/caddy
+            ^start-stop-daemon --status --pidfile $pidfile
 
             let response = (
                 ^curl --disable --fail --silent --show-error --noproxy '*'
@@ -53,7 +53,7 @@ def wait-ready [pidfile: path] {
 def stop-daemon [pidfile: path] {
     (
         ^start-stop-daemon --stop --quiet --oknodo --pidfile $pidfile
-            --exec /usr/bin/caddy --retry TERM/10/KILL/5
+            --retry TERM/10/KILL/5
         | ignore --show-errors
     )
 }
@@ -74,7 +74,7 @@ def main [] {
         write-test-caddyfile $work
         start-daemon $work $pidfile $log
         wait-ready $pidfile
-        ^start-stop-daemon --status --pidfile $pidfile --exec /usr/bin/caddy | ignore --show-errors
+        ^start-stop-daemon --status --pidfile $pidfile | ignore --show-errors
     } catch {|err|
         if ($log | path exists) {
             print --stderr (open --raw $log)

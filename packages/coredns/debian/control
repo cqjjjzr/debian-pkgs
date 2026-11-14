@@ -8,7 +8,7 @@ Rules-Requires-Root: no
 Homepage: https://coredns.io
 
 Package: coredns
-Architecture: amd64
+Architecture: linux-any
 Depends: ${misc:Depends}, adduser
 Description: DNS server that chains plugins
  CoreDNS is a flexible DNS server with plugins for authoritative zones,

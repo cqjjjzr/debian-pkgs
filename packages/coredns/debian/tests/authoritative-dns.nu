@@ -34,7 +34,7 @@ def start-daemon [work: path, pidfile: path, log: path] {
 def wait-ready [pidfile: path] {
     for attempt in 1..10 {
         if ($pidfile | path exists) {
-            ^start-stop-daemon --status --pidfile $pidfile --exec /usr/bin/coredns
+            ^start-stop-daemon --status --pidfile $pidfile
 
             let response = (
                 ^dig @127.0.0.1 -p 1053 www.example.test A +short +time=1 +tries=1
@@ -72,7 +72,7 @@ def verify-dns-queries [] {
 def stop-daemon [pidfile: path] {
     (
         ^start-stop-daemon --stop --quiet --oknodo --pidfile $pidfile
-            --exec /usr/bin/coredns --retry TERM/10/KILL/5
+            --retry TERM/10/KILL/5
         | ignore --show-errors
     )
 }
@@ -86,7 +86,7 @@ def main [] {
         setup-zone-fixture $work
         start-daemon $work $pidfile $log
         wait-ready $pidfile
-        ^start-stop-daemon --status --pidfile $pidfile --exec /usr/bin/coredns
+        ^start-stop-daemon --status --pidfile $pidfile
         verify-dns-queries
     } catch {|err|
         if ($log | path exists) {

@@ -2,39 +2,14 @@
 # Build a package and run upstream tests and lintian.
 
 use std/assert
-use versions.nu read-versions
+use recipe-helpers.nu [collect-artifacts run-recipe]
 
-# Prepare source tree: clone upstream repository or configure Caddy build directory.
-def prepare-source [package: string, pins: record, packaging: path, work: path] {
-    let source = $work | path join $package
-    if $package == 'caddy-with-acmedns' {
-        # xcaddy assembles the source; Debian rules invoke the pinned compiler script.
-        mkdir $source
-        (^cp -a ($packaging | path join versions.env)
-            ($env.FILE_PWD | path join build-caddy.nu)
-            ($env.FILE_PWD | path join versions.nu) $source)
-        {
-            version: ($pins.CADDY_VERSION | str replace --regex '^v' '')
-            change: $"Package upstream Caddy ($pins.CADDY_VERSION) with dns.providers.acmedns \(($pins.ACMEDNS_REVISION)\)."
-        }
-    } else {
-        assert ($pins.UPSTREAM_VERSION =~ '^[0-9.]+$') 'Unsupported UPSTREAM_VERSION in versions.env'
-        (^git clone --quiet --depth 1 --branch $"v($pins.UPSTREAM_VERSION)"
-            $"https://github.com/($pins.UPSTREAM_REPO).git" $source)
-        # Tag integrity check: ensure the cloned commit matches the pinned hash.
-        assert equal (^git -C $source rev-parse HEAD | str trim) $pins.SOURCE_REVISION
-        {
-            version: $pins.UPSTREAM_VERSION
-            change: $"Package upstream ($package) ($pins.UPSTREAM_VERSION) \(($pins.SOURCE_REVISION)\)."
-        }
-    }
-}
-
-# Generate debian/changelog entry with pinned version and maintainer identity.
-def write-changelog [package: string, version: string, change: string] {
-    let maintainer = open --raw debian/control | lines
+# Generate the debian/changelog entry with pinned version and maintainer identity, above any existing history.
+def write-changelog [package: string, version: string, change: string, maintainer?] {
+    let maintainer = $maintainer | default (open --raw debian/control | lines
         | where {|line| $line | str starts-with 'Maintainer: ' }
-        | first | str replace 'Maintainer: ' ''
+        | first | str replace 'Maintainer: ' '')
+    let history = if ('debian/changelog' | path exists) { [(open --raw debian/changelog)] } else { [] }
     let date = with-env {LC_ALL: C} { ^date -R | str trim }
     [
         $"($package) \(($version)\) unstable; urgency=medium"
@@ -43,52 +18,36 @@ def write-changelog [package: string, version: string, change: string] {
         ''
         $" -- ($maintainer)  ($date)"
         ''
+        ...$history
     ] | str join "\n" | save --force debian/changelog
 }
 
-# Copy built package artifacts (.deb, .buildinfo, .changes) to the output directory.
-def collect-artifacts [work: path, package: string, output: path] {
-    for extension in [deb buildinfo changes] {
-        let files = glob ($work | path join $"($package)_*.($extension)")
-        assert (not ($files | is-empty)) $"Missing .($extension) artifacts"
-        ^cp ...$files $output
-    }
-}
-
 def main [package: string, --native] {
-    if $package not-in ['coredns' 'acme-dns' 'caddy-with-acmedns'] {
-        error make {msg: 'Unknown source package'}
-    }
-    if $native {
-        assert equal $package 'caddy-with-acmedns' 'Native packaging is supported for Caddy only'
-    }
-
+    assert ($package =~ '^[a-z0-9][a-z0-9+.-]+$') 'Invalid source package name'
     if not $native and (^id -u | str trim) == '0' {
         # Permission tests must run as a normal user, including during package builds.
         let owner = ^stat -c '%u:%g' /out | str trim
         let writable = [/build /out $env.GOMODCACHE $env.GOCACHE]
         ^chown -R builder:builder ...$writable
 
-        let result = try {
+        try {
             ^runuser -u builder -- nu --no-config-file ($env.FILE_PWD | path join build-source.nu) $package
-                | complete
+        } catch {|err|
+            error make {msg: $err.msg}
         } finally {
             ^chown -R $owner ...$writable | ignore --show-errors
         }
-
-        print --no-newline $result.stdout
-        print --stderr --no-newline $result.stderr
-        assert equal $result.exit_code 0 'Package build failed'
-
         return
     }
 
-    let packaging = if $native {
-        $env.FILE_PWD | path dirname | path join packages $package
-    } else { '/packaging' }
+    if $env.TARGET_ARCH? != null {
+        assert equal (^dpkg --print-architecture | str trim) $env.TARGET_ARCH 'Unexpected Debian architecture. Use CONTAINER_PLATFORM to select the container platform.'
+    }
+    let packaging = $env.FILE_PWD | path dirname | path join packages $package
     let output = if $native { $packaging | path join build } else { '/out' }
-    let pins = read-versions ($packaging | path join versions.env)
+    let recipe = run-recipe $packaging | from json
     if $native {
+        assert ($recipe.native? | default false) $"Native packaging is unsupported for ($package)"
         $env.GOMODCACHE = $env.GOMODCACHE? | default ($packaging | path join .cache go-mod)
         $env.GOCACHE = $env.GOCACHE? | default ($packaging | path join .cache go-build)
         mkdir $output $env.GOMODCACHE $env.GOCACHE
@@ -97,25 +56,24 @@ def main [package: string, --native] {
     let original_directory = pwd
 
     try {
-        let source = prepare-source $package $pins $packaging $work
-        cd ($work | path join $package)
-        ^cp -a ($packaging | path join debian) .
-        write-changelog $package $"($source.version)-($pins.DEBIAN_REVISION)" $source.change
-        ^dpkg-buildpackage -us -uc -b
+        let source = $work | path join $package
+        run-recipe $packaging prepare $source
+        cd $source
+        write-changelog $package $recipe.version $recipe.changelog $recipe.maintainer?
+        ^dpkg-buildpackage -us -uc ($recipe.build_type? | default '-b')
 
         cd $work
-        let debs = glob $"($package)_*.deb"
+        let debs = glob '*.deb'
         assert (not ($debs | is-empty)) 'No Debian packages were built'
 
         ^lintian ...$debs
 
         if not $native {
-            # Autopkgtest needs the generated changelog and tests, but no upstream sources.
             mkdir ($output | path join source)
-            ^cp -a ($work | path join $package debian) ($output | path join source)
+            ^cp -a ($source | path join debian) ($output | path join source)
         }
 
-        collect-artifacts $work $package $output
+        collect-artifacts $work $output
     } catch {|err|
         # Preserve command failures when cleanup runs another external command.
         error make {msg: $err.msg}
@@ -123,10 +81,6 @@ def main [package: string, --native] {
         if $native {
             cd $original_directory
             rm --recursive --force $work
-        } else {
-            # The host must be able to discard staged files after a failed test.
-            let owner = ^stat -c '%u:%g' $output | str trim
-            ^chown -R $owner $output | ignore --show-errors
         }
     }
 }

@@ -72,14 +72,14 @@ def stop-daemon [pidfile: path] {
     try {
         (
             ^start-stop-daemon --stop --quiet --oknodo --pidfile $pidfile
-                --exec /usr/bin/acme-dns --retry TERM/10
+                --retry TERM/10
             | ignore --show-errors
         )
     } catch {|err|
         # Clean up a stuck daemon, but still fail the test for exceeding the timeout.
         (
             ^start-stop-daemon --stop --quiet --oknodo --pidfile $pidfile
-                --exec /usr/bin/acme-dns --retry KILL/5
+                --retry KILL/5
             | ignore --show-errors
         )
 
