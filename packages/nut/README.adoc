@@ -1,0 +1,21 @@
+= NUT with USB Modbus Debian packages
+
+Debian's `nut-modbus` ships `apc_modbus` with serial and TCP support. Direct USB connections to APC Smart-UPS units
+require a USB transport that trixie's libmodbus lacks. This backport builds Debian's https://tracker.debian.org/pkg/nut[nut]
+source package with the Modbus drivers linked statically against https://github.com/networkupstools/libmodbus/tree/rtu_usb[NUT's USB-capable libmodbus fork].
+Pins live in link:versions.env[`versions.env`].
+
+Build all architecture-dependent NUT packages with `nu scripts/build.nu nut` from the repository root.
+The installed-package tests exercise a simulated UPS and check that `apc_modbus` reports USB support with statically linked libmodbus.
+See the link:../../README.adoc[repository README] for prerequisites and release instructions.
+When updating the Debian source pin, check that link:backport.patch[`backport.patch`] still applies.
+
+== Package details
+
+Binary packages keep Debian's names and layout (drivers in `/usr/libexec/nut`). Versions are
+`<Debian version>+usbmodbusN`, which sorts above the same Debian version. All NUT packages on a host should come from one
+build: `nut-modbus` depends on `nut-server (= version)`.
+
+The UPS must have Modbus enabled
+(front panel: Advanced → Configuration → Modbus) unless it already answers. Only one driver may hold the USB device, so
+`apc_modbus` replaces `usbhid-ups` for that UPS in `ups.conf`.

@@ -5,8 +5,9 @@ This repository maintains the following Debian packaging recipes:
 * link:packages/coredns/README.adoc[CoreDNS]: DNS server with systemd integration and unprivileged execution.
 * link:packages/acme-dns/README.adoc[acme-dns]: Dedicated DNS server for ACME DNS-01 challenge validation.
 * link:packages/caddy-with-acmedns/README.adoc[Caddy with acmedns]: Caddy web server built with the `dns.providers.acmedns` plugin via xcaddy, replacing stock `caddy`.
+* link:packages/nut/README.adoc[NUT with USB Modbus]: Debian's `nut` rebuilt for trixie with libmodbus `rtu_usb` linked statically, so `apc_modbus` works over USB.
 
-Each package pins upstream source tags, commit hashes, Go compiler versions, and package revisions in its own `versions.env`. Increment `DEBIAN_REVISION` for packaging changes.
+Each package records its source and build pins in `versions.env`. Increment `DEBIAN_REVISION` for packaging changes.
 
 == Build
 

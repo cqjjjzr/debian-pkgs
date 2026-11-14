@@ -1,0 +1,83 @@
+diff -ruN a/debian/control b/debian/control
+--- a/debian/control
++++ b/debian/control
+@@ -14,7 +14,6 @@
+                libi2c-dev [linux-any],
+                libipmimonitoring-dev [!hurd-any],
+                libltdl-dev,
+-               libmodbus-dev,
+                libneon27-gnutls-dev | libneon27-dev,
+                libnss3-dev,
+                libpowerman0-dev,
+@@ -159,6 +158,9 @@
+  .
+  This package provides nut-modbus, a collection of drivers for UPS systems
+  with Modbus-based communication protocols.
++ .
++ This build links libmodbus with USB support statically, so apc_modbus
++ can reach APC units over USB.
+ 
+ Package: nut-xml
+ Architecture: any
+diff -ruN a/debian/rules b/debian/rules
+--- a/debian/rules
++++ b/debian/rules
+@@ -32,6 +32,13 @@
+ 			     --with-systemdtmpfilesdir=/usr/lib/tmpfiles.d \
+ 			     --with-python=python3 --with-python3=/usr/bin/python3
+ 
++export DEB_BUILD_OPTIONS += noautodbgsym
++# Modbus drivers link libmodbus's rtu_usb branch statically (USB transport for apc_modbus).
++LIBMODBUS_USB := $(CURDIR)/debian/libmodbus-usb
++DEB_CONFIGURE_EXTRA_FLAGS += --with-modbus --with-modbus+usb=yes \
++	--with-modbus-includes=-I$(LIBMODBUS_USB)/include/modbus \
++	--with-modbus-libs="$(LIBMODBUS_USB)/lib/libmodbus.a -lusb-1.0"
++
+ ifeq ($(DEB_HOST_ARCH_OS), linux)
+   DEB_CONFIGURE_EXTRA_FLAGS+=--with-libsystemd
+ else
+@@ -53,8 +60,17 @@
+ 	dh $@ --with python3
+ 
+ override_dh_auto_configure:
++	cd libmodbus-usb && ./autogen.sh && ./configure --with-libusb --enable-static --disable-shared \
++		--disable-tests --with-pic --prefix=$(LIBMODBUS_USB) \
++		CFLAGS="$(CFLAGS)" CPPFLAGS="$(CPPFLAGS)" LDFLAGS="$(LDFLAGS)"
++	$(MAKE) -C libmodbus-usb install
+ 	dh_auto_configure -- $(DEB_CONFIGURE_EXTRA_FLAGS)
+ 
++override_dh_auto_clean:
++	dh_auto_clean
++	rm -rf debian/libmodbus-usb
++	[ ! -f libmodbus-usb/Makefile ] || $(MAKE) -C libmodbus-usb distclean
++
+ override_dh_autoreconf:
+ 	dh_autoreconf --as-needed
+ 
+diff -ruN a/debian/tests/control b/debian/tests/control
+--- a/debian/tests/control
++++ b/debian/tests/control
+@@ -1,3 +1,7 @@
+ Tests: nut
+ Depends: lsb-release, netcat, nut-client, nut-server, psmisc, python3, python3-cffi
+ Restrictions: needs-root
++
++Test-Command: /usr/libexec/nut/apc_modbus -V 2>&1 | grep -F 'with USB support (libmodbus link type: static)' && ! ldd /usr/libexec/nut/apc_modbus | grep -F libmodbus
++Depends: nut-modbus
++Restrictions: superficial, allow-stderr
+--- a/debian/tests/testlib.py
++++ b/debian/tests/testlib.py
+@@ -282,6 +282,13 @@
+        re.match('^\(' + exe + '\)', tmp[0]):
+         return True
+ 
++    # Under user-mode emulation argv[0] can name the interpreter.
++    if tmp[0]:
++        try:
++            with open("/proc/%s/comm" % pid) as comm:
++                return comm.read().rstrip("\n") == exe
++        except OSError:
++            pass
+     return False
+ 
+ def check_port(port, proto, ver=4):

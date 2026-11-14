@@ -17,6 +17,10 @@ on:
         description: Build Caddy with acmedns
         type: boolean
         default: true
+      nut:
+        description: Build NUT with USB Modbus
+        type: boolean
+        default: true
       release:
         description: Publish a GitHub release for each selected package
         type: boolean
